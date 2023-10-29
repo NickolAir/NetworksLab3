@@ -1,4 +1,5 @@
-import requests
+import asyncio
+import httpx
 import datetime as dt
 
 BASE_URL1 = "https://graphhopper.com/api/1/geocode"
@@ -10,46 +11,48 @@ API_KEY_LOCATIONS = open('api_key_locations', 'r').read()
 API_KEY_PLACES = open('api_key_nearly_places', 'r').read()
 
 
-def fetch_geocoding_data(city):
-    url = f"{BASE_URL1}?key={API_KEY_LOCATIONS}&q={city}&limit=10"
-    response = requests.get(url)
-    if response.status_code == 200:
-        data = response.json()
-        if 'hits' in data:
-            locations = []
-            for hit in data['hits']:
-                locations.append({
-                    "Место": hit["name"],
-                    "Координаты": f"({hit['point']['lat']}, {hit['point']['lng']})"
-                })
-            return locations
+async def fetch_geocoding_data(city):
+    async with httpx.AsyncClient() as client:
+        url = f"{BASE_URL1}?key={API_KEY_LOCATIONS}&q={city}&limit=10"
+        response = await client.get(url)
+        if response.status_code == 200:
+            data = response.json()
+            if 'hits' in data:
+                locations = []
+                for hit in data['hits']:
+                    locations.append({
+                        "Место": hit["name"],
+                        "Координаты": f"({hit['point']['lat']}, {hit['point']['lng']})"
+                    })
+                return locations
     return []
 
 
-def fetch_weather_data(city):
-    url = f"{BASE_URL2}?appid={API_KEY_WEATHER}&q={city}"
-    response = requests.get(url).json()
-    if 'main' in response:
-        temp_kelvin = response['main']['temp']
-        temp_celsius, temp_fahrenheit = KelvinToCelsius(temp_kelvin)
-        feels_like_kelvin = response['main']['feels_like']
-        feels_like_celsius, feels_like_fahrenheit = KelvinToCelsius(feels_like_kelvin)
-        humidity = response['main']['humidity']
-        wind_speed = response['wind']['speed']
-        description = response['weather'][0]['description']
-        sunrise_time = dt.datetime.utcfromtimestamp(response['sys']['sunrise'] + response['timezone'])
-        sunset_time = dt.datetime.utcfromtimestamp(response['sys']['sunset'] + response['timezone'])
+async def fetch_weather_data(city):
+    async with httpx.AsyncClient() as client:
+        url = f"{BASE_URL2}?appid={API_KEY_WEATHER}&q={city}"
+        response = await client.get(url)
+        if 'main' in response.json():
+            temp_kelvin = response.json()['main']['temp']
+            temp_celsius, temp_fahrenheit = KelvinToCelsius(temp_kelvin)
+            feels_like_kelvin = response.json()['main']['feels_like']
+            feels_like_celsius, feels_like_fahrenheit = KelvinToCelsius(feels_like_kelvin)
+            humidity = response.json()['main']['humidity']
+            wind_speed = response.json()['wind']['speed']
+            description = response.json()['weather'][0]['description']
+            sunrise_time = dt.datetime.utcfromtimestamp(response.json()['sys']['sunrise'] + response.json()['timezone'])
+            sunset_time = dt.datetime.utcfromtimestamp(response.json()['sys']['sunset'] + response.json()['timezone'])
 
-        return {
-            "Temperature": f"{temp_celsius:.2f}°C or {temp_fahrenheit}°F",
-            "Temperature feels like": f"{feels_like_celsius:.2f}°C or {feels_like_fahrenheit:.2f}°F",
-            "Humidity": f"{humidity}%",
-            "Wind Speed": f"{wind_speed}m/s",
-            "General Weather": description,
-            "Sunrise Time": f"{sunrise_time} local time",
-            "Sunset Time": f"{sunset_time} local time"
-        }
-    return {}
+            return {
+                "Temperature": f"{temp_celsius:.2f}°C or {temp_fahrenheit}°F",
+                "Temperature feels like": f"{feels_like_celsius:.2f}°C or {feels_like_fahrenheit:.2f}°F",
+                "Humidity": f"{humidity}%",
+                "Wind Speed": f"{wind_speed}m/s",
+                "General Weather": description,
+                "Sunrise Time": f"{sunrise_time} local time",
+                "Sunset Time": f"{sunset_time} local time"
+            }
+    return []
 
 
 def KelvinToCelsius(kelvin):
@@ -58,34 +61,35 @@ def KelvinToCelsius(kelvin):
     return celsius, fahrenheit
 
 
-def search_restaurants(city, term="restaurant", limit=10):
-    base_url = BASE_URL3
-    headers = {
-        "Authorization": f"Bearer {API_KEY_PLACES}"
-    }
-    params = {
-        "location": city,
-        "term": term,
-        "limit": limit
-    }
-    response = requests.get(base_url, headers=headers, params=params)
-    data = response.json()
-    if "businesses" in data:
-        restaurants = []
-        for i, business in enumerate(data["businesses"]):
-            restaurants.append({
-                "Название": business['name'],
-                "Адрес": business['location']['address1'],
-                "Рейтинг": business['rating'],
-                "Отзывов": business['review_count']
-            })
-        return restaurants
+async def search_restaurants(city, term="restaurant", limit=10):
+    async with httpx.AsyncClient() as client:
+        base_url = BASE_URL3
+        headers = {
+            "Authorization": f"Bearer {API_KEY_PLACES}"
+        }
+        params = {
+            "location": city,
+            "term": term,
+            "limit": limit
+        }
+        response = await client.get(base_url, headers=headers, params=params)
+        data = response.json()
+        if "businesses" in data:
+            restaurants = []
+            for i, business in enumerate(data["businesses"]):
+                restaurants.append({
+                    "Название": business['name'],
+                    "Адрес": business['location']['address1'],
+                    "Рейтинг": business['rating'],
+                    "Отзывов": business['review_count']
+                })
+            return restaurants
     return []
 
 
-def main():
+async def main():
     city = input("Введите город: ")
-    geocoding_data = fetch_geocoding_data(city)
+    geocoding_data = await fetch_geocoding_data(city)
 
     if geocoding_data:
         print("Найдены следующие местоположения:")
@@ -96,7 +100,7 @@ def main():
         selected_location = geocoding_data[choice]["Место"]
 
         print()
-        weather_data = fetch_weather_data(selected_location)
+        weather_data = await fetch_weather_data(selected_location)
         if weather_data:
             print("Погода в выбранном местоположении:")
             for key, value in weather_data.items():
@@ -105,7 +109,7 @@ def main():
             print(f"Информация о погоде для {selected_location} не найдена.")
 
         print()
-        restaurants = search_restaurants(selected_location)
+        restaurants = await search_restaurants(selected_location)
         if restaurants:
             print("Рестораны в выбранном местоположении:")
             for i, restaurant in enumerate(restaurants):
@@ -120,4 +124,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main())
