@@ -3,9 +3,11 @@ import requests
 
 BASE_URL1 = "https://graphhopper.com/api/1/geocode"
 BASE_URL2 = "http://api.openweathermap.org/data/2.5/weather?"
+BASE_URL3 = "https://api.yelp.com/v3/businesses/search"
 
 API_KEY_WEATHER = open('api_key_weather', 'r').read()
 API_KEY_LOCATIONS = open('api_key_locations', 'r').read()
+API_KEY_PLACES = open('api_key_nearly_places', 'r').read()
 
 CITY = input()
 
@@ -51,3 +53,28 @@ print(f"Wind Speed in {CITY}: {wind_speed}m/s")
 print(f"General Weather in {CITY}: {description}")
 print(f"Sun rises in {CITY} at {sunrise_time} local time.")
 print(f"Sun sets in {CITY} at {sunset_time} local time.")
+print()
+
+def search_restaurants(CITY, term="restaurant", limit=10):
+    base_url = "https://api.yelp.com/v3/businesses/search"
+    headers = {
+        "Authorization": f"Bearer {API_KEY_PLACES}"
+    }
+    params = {
+        "location": CITY,  # Местоположение, например, "New York"
+        "term": term,  # Тип места, например, "restaurant"
+        "limit": limit  # Лимит результатов
+    }
+    response = requests.get(base_url, headers=headers, params=params)
+    data = response.json()
+    if "businesses" in data:
+        for i, business in enumerate(data["businesses"]):
+            print(f"{i + 1}. Название: {business['name']}")
+            print(f"   Адрес: {business['location']['address1']}")
+            print(f"   Рейтинг: {business['rating']}")
+            print(f"   Отзывов: {business['review_count']}")
+            print()
+    else:
+        print("Рестораны не найдены.")
+
+search_restaurants(CITY)
